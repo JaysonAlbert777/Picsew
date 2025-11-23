@@ -1,18 +1,19 @@
-import { useState, useRef, useEffect } from 'react';
-import { Upload, Image, Play, Check, Smartphone } from 'lucide-react';
-import { VideoUpload } from './components/VideoUpload';
-import { ProcessingView } from './components/ProcessingView';
-import { PreviewView } from './components/PreviewView';
-import { processVideo as picsewProcessVideo } from './lib/picsew';
+import { useState, useRef, useEffect } from "react";
+import { Upload, Image, Play, Check, Smartphone } from "lucide-react";
+import { VideoUpload } from "./components/VideoUpload";
+import { ProcessingView } from "./components/ProcessingView";
+import { PreviewView } from "./components/PreviewView";
+import { processVideo as picsewProcessVideo } from "./lib/picsew";
 
-type AppStep = 'upload' | 'processing' | 'preview';
+type AppStep = "upload" | "processing" | "preview";
 
 export default function App() {
-  const [currentStep, setCurrentStep] = useState<AppStep>('upload');
+  const [currentStep, setCurrentStep] = useState<AppStep>("upload");
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [processProgress, setProcessProgress] = useState(0);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isOpenCVReady, setIsOpenCVReady] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -29,12 +30,24 @@ export default function App() {
     }
   }, [selectedVideo]);
 
+  useEffect(() => {
+    const loadOpenCV = async () => {
+      try {
+        await import("./lib/opencv").then((m) => m.getOpenCV());
+        setIsOpenCVReady(true);
+      } catch (error) {
+        console.error("Failed to load OpenCV:", error);
+      }
+    };
+    loadOpenCV();
+  }, []);
+
   const handleVideoSelect = (file: File) => {
     setSelectedVideo(file);
   };
 
   const handleStartProcessing = async (): Promise<void> => {
-    setCurrentStep('processing');
+    setCurrentStep("processing");
     setProcessProgress(0);
 
     if (videoRef.current && canvasRef.current) {
@@ -42,11 +55,11 @@ export default function App() {
         videoRef.current,
         console.log, // or a state-based logger
         canvasRef.current,
-        (p) => setProcessProgress(Math.round(p))
+        (p) => setProcessProgress(Math.round(p)),
       );
-      const imageUrl = canvasRef.current.toDataURL('image/png');
+      const imageUrl = canvasRef.current.toDataURL("image/png");
       setGeneratedImage(imageUrl);
-      setCurrentStep('preview');
+      setCurrentStep("preview");
     } else {
       console.error("Video or canvas ref not available");
       // Handle error appropriately
@@ -55,21 +68,21 @@ export default function App() {
   };
 
   const handleReset = () => {
-    setCurrentStep('upload');
+    setCurrentStep("upload");
     setSelectedVideo(null);
     setVideoPreviewUrl(null);
     setProcessProgress(0);
     setGeneratedImage(null);
     if (videoRef.current) {
-      videoRef.current.src = '';
+      videoRef.current.src = "";
     }
   };
 
   const handleDownload = () => {
     if (generatedImage) {
-      const link = document.createElement('a');
+      const link = document.createElement("a");
       link.href = generatedImage;
-      link.download = 'long-screenshot.png';
+      link.download = "long-screenshot.png";
       link.click();
     }
   };
@@ -95,44 +108,66 @@ export default function App() {
       <div className="px-4 py-6 bg-white border-b">
         <div className="flex items-center justify-between max-w-md mx-auto">
           <div className="flex flex-col items-center gap-2 flex-1">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-              currentStep === 'upload' 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-green-500 text-white'
-            }`}>
-              {currentStep === 'upload' ? <Upload className="w-5 h-5" /> : <Check className="w-5 h-5" />}
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                currentStep === "upload"
+                  ? "bg-blue-500 text-white"
+                  : "bg-green-500 text-white"
+              }`}
+            >
+              {currentStep === "upload" ? (
+                <Upload className="w-5 h-5" />
+              ) : (
+                <Check className="w-5 h-5" />
+              )}
             </div>
             <span className="text-xs text-center">选择视频</span>
           </div>
-          
-          <div className={`h-0.5 flex-1 mx-2 ${
-            currentStep === 'upload' ? 'bg-gray-200' : 'bg-green-500'
-          }`} />
-          
+
+          <div
+            className={`h-0.5 flex-1 mx-2 ${
+              currentStep === "upload" ? "bg-gray-200" : "bg-green-500"
+            }`}
+          />
+
           <div className="flex flex-col items-center gap-2 flex-1">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-              currentStep === 'upload' 
-                ? 'bg-gray-200 text-gray-400'
-                : currentStep === 'processing'
-                ? 'bg-blue-500 text-white'
-                : 'bg-green-500 text-white'
-            }`}>
-              {currentStep === 'preview' ? <Check className="w-5 h-5" /> : <Play className="w-5 h-5" />}
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                currentStep === "upload"
+                  ? "bg-gray-200 text-gray-400"
+                  : currentStep === "processing"
+                    ? "bg-blue-500 text-white"
+                    : "bg-green-500 text-white"
+              }`}
+            >
+              {currentStep === "preview" ? (
+                <Check className="w-5 h-5" />
+              ) : (
+                <Play className="w-5 h-5" />
+              )}
             </div>
             <span className="text-xs text-center">处理中</span>
           </div>
-          
-          <div className={`h-0.5 flex-1 mx-2 ${
-            currentStep === 'preview' ? 'bg-green-500' : 'bg-gray-200'
-          }`} />
-          
+
+          <div
+            className={`h-0.5 flex-1 mx-2 ${
+              currentStep === "preview" ? "bg-green-500" : "bg-gray-200"
+            }`}
+          />
+
           <div className="flex flex-col items-center gap-2 flex-1">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-              currentStep === 'preview'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-200 text-gray-400'
-            }`}>
-              {currentStep === 'preview' ? <Check className="w-5 h-5" /> : <Image className="w-5 h-5" />}
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                currentStep === "preview"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-200 text-gray-400"
+              }`}
+            >
+              {currentStep === "preview" ? (
+                <Check className="w-5 h-5" />
+              ) : (
+                <Image className="w-5 h-5" />
+              )}
             </div>
             <span className="text-xs text-center">预览下载</span>
           </div>
@@ -141,20 +176,21 @@ export default function App() {
 
       {/* Main Content */}
       <div className="px-4 py-6 pb-24">
-        {currentStep === 'upload' && (
+        {currentStep === "upload" && (
           <VideoUpload
             selectedVideo={selectedVideo}
             videoPreviewUrl={videoPreviewUrl}
             onVideoSelect={handleVideoSelect}
             onStartProcessing={handleStartProcessing}
+            isOpenCVReady={isOpenCVReady}
           />
         )}
 
-        {currentStep === 'processing' && (
+        {currentStep === "processing" && (
           <ProcessingView progress={processProgress} />
         )}
 
-        {currentStep === 'preview' && generatedImage && (
+        {currentStep === "preview" && generatedImage && (
           <PreviewView
             imageUrl={generatedImage}
             onDownload={handleDownload}

@@ -1,13 +1,14 @@
-import { useRef } from 'react';
-import { Upload, Video, X, Play } from 'lucide-react';
-import { Button } from './ui/button';
-import { Card } from './ui/card';
+import { useRef, useState } from "react";
+import { Upload, Video, X, Play } from "lucide-react";
+import { Button } from "./ui/button";
+import { Card } from "./ui/card";
 
 interface VideoUploadProps {
   selectedVideo: File | null;
   videoPreviewUrl: string | null;
   onVideoSelect: (file: File) => void;
   onStartProcessing: () => void;
+  isOpenCVReady: boolean;
 }
 
 export function VideoUpload({
@@ -15,19 +16,41 @@ export function VideoUpload({
   videoPreviewUrl,
   onVideoSelect,
   onStartProcessing,
+  isOpenCVReady,
 }: VideoUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith("video/")) {
+      onVideoSelect(file);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith('video/')) {
+    if (file && file.type.startsWith("video/")) {
       onVideoSelect(file);
     }
   };
 
   const handleClearVideo = () => {
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
     onVideoSelect(null as unknown as File);
   };
@@ -36,11 +59,18 @@ export function VideoUpload({
     <div className="max-w-md mx-auto space-y-4">
       <Card className="p-6">
         <h2 className="mb-4">上传录屏视频</h2>
-        
+
         {!selectedVideo ? (
           <div
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50 transition-colors"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors ${
+              isDragging
+                ? "border-blue-500 bg-blue-50"
+                : "border-gray-300 hover:border-blue-400 hover:bg-blue-50/50"
+            }`}
           >
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Upload className="w-8 h-8 text-blue-600" />
@@ -65,7 +95,7 @@ export function VideoUpload({
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl">
               <Video className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="flex-1 min-w-0">
@@ -90,10 +120,17 @@ export function VideoUpload({
       {selectedVideo && (
         <Button
           onClick={onStartProcessing}
-          className="w-full h-14 text-base bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700"
+          disabled={!isOpenCVReady}
+          className="w-full h-14 text-base bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Play className="w-5 h-5 mr-2" />
-          开始处理
+          {isOpenCVReady ? (
+            <>
+              <Play className="w-5 h-5 mr-2" />
+              开始处理
+            </>
+          ) : (
+            "正在加载资源..."
+          )}
         </Button>
       )}
 
