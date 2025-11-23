@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect } from "react";
 import { Upload, Image, Play, Check, Smartphone } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { VideoUpload } from "./components/VideoUpload";
 import { ProcessingView } from "./components/ProcessingView";
 import { PreviewView } from "./components/PreviewView";
+import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { processVideo as picsewProcessVideo } from "./lib/picsew";
 
 type AppStep = "upload" | "processing" | "preview";
 
 export default function App() {
+  const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState<AppStep>("upload");
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -92,14 +95,17 @@ export default function App() {
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10 shadow-sm">
         <div className="px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Smartphone className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <Smartphone className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg">{t("app.title")}</h1>
+                <p className="text-xs text-gray-500">{t("app.subtitle")}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg">长截图生成器</h1>
-              <p className="text-xs text-gray-500">录屏转长图工具</p>
-            </div>
+            <LanguageSwitcher />
           </div>
         </div>
       </div>
@@ -121,7 +127,9 @@ export default function App() {
                 <Check className="w-5 h-5" />
               )}
             </div>
-            <span className="text-xs text-center">选择视频</span>
+            <span className="text-xs text-center">
+              {t("app.steps.selectVideo")}
+            </span>
           </div>
 
           <div
@@ -146,7 +154,9 @@ export default function App() {
                 <Play className="w-5 h-5" />
               )}
             </div>
-            <span className="text-xs text-center">处理中</span>
+            <span className="text-xs text-center">
+              {t("app.steps.processing")}
+            </span>
           </div>
 
           <div
@@ -169,7 +179,9 @@ export default function App() {
                 <Image className="w-5 h-5" />
               )}
             </div>
-            <span className="text-xs text-center">预览下载</span>
+            <span className="text-xs text-center">
+              {t("app.steps.previewDownload")}
+            </span>
           </div>
         </div>
       </div>

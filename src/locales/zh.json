@@ -1,0 +1,72 @@
+{
+  "app": {
+    "title": "长截图生成器",
+    "subtitle": "录屏转长图工具",
+    "steps": {
+      "selectVideo": "选择视频",
+      "processing": "处理中",
+      "previewDownload": "预览下载"
+    }
+  },
+  "upload": {
+    "title": "上传录屏视频",
+    "dragDrop": "点击上传视频",
+    "dragDropActive": "松开上传视频",
+    "supportFormat": "支持 MP4, MOV, AVI 等格式",
+    "startProcessing": "开始处理",
+    "loadingResources": "正在加载资源...",
+    "instructions": {
+      "title": "使用说明",
+      "step1": "上传包含滑动操作的录屏视频",
+      "step2": "系统会自动识别滑动内容",
+      "step3": "生成一张完整的长截图",
+      "step4": "支持预览和下载保存"
+    }
+  },
+  "processing": {
+    "title": "处理中",
+    "stages": {
+      "preparing": "准备中...",
+      "extracting": "提取视频帧...",
+      "finding": "查找滚动窗口...",
+      "selecting": "选择关键帧...",
+      "filtering": "过滤关键帧...",
+      "stitching": "拼接长截图...",
+      "generating": "生成最终图像..."
+    },
+    "steps": {
+      "analysis": "视频帧分析",
+      "selection": "关键帧选择",
+      "generation": "长截图生成"
+    },
+    "waitMessage": "请稍候，处理时间取决于视频长度和内容复杂度"
+  },
+  "preview": {
+    "complete": {
+      "title": "处理完成",
+      "desc": "长截图已生成，可以预览和下载"
+    },
+    "result": {
+      "title": "预览结果",
+      "alt": "生成的长截图",
+      "hint": "长截图已生成，向上滑动查看完整内容"
+    },
+    "actions": {
+      "download": "下载图片",
+      "share": "分享",
+      "startOver": "重新开始"
+    },
+    "tips": {
+      "title": "提示",
+      "save": "长按图片可以保存到相册",
+      "download": "点击下载按钮保存到本地",
+      "share": "可以通过分享按钮发送给好友"
+    },
+    "share": {
+      "unsupported": "您的浏览器不支持分享功能",
+      "title": "长截图",
+      "text": "查看我生成的长截图",
+      "failed": "分享已取消或失败"
+    }
+  }
+}

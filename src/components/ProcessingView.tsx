@@ -1,20 +1,29 @@
-import { Loader2, Film, Scan, Layers, Blend, Scissors } from 'lucide-react';
-import { Card } from './ui/card';
-import { Progress } from './ui/progress';
+import { Loader2, Film, Scan, Layers, Blend, Scissors } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Card } from "./ui/card";
+import { Progress } from "./ui/progress";
 
 interface ProcessingViewProps {
   progress: number;
 }
 
 export function ProcessingView({ progress }: ProcessingViewProps) {
+  const { t } = useTranslation();
+
   const getProcessingStage = () => {
-    if (progress < 10) return { icon: Film, text: '准备中...' };
-    if (progress < 30) return { icon: Film, text: '提取视频帧...' };
-    if (progress < 50) return { icon: Scan, text: '查找滚动窗口...' };
-    if (progress < 70) return { icon: Scissors, text: '选择关键帧...' };
-    if (progress < 85) return { icon: Blend, text: '过滤关键帧...' };
-    if (progress < 95) return { icon: Layers, text: '拼接长截图...' };
-    return { icon: Layers, text: '生成最终图像...' };
+    if (progress < 10)
+      return { icon: Film, text: t("processing.stages.preparing") };
+    if (progress < 30)
+      return { icon: Film, text: t("processing.stages.extracting") };
+    if (progress < 50)
+      return { icon: Scan, text: t("processing.stages.finding") };
+    if (progress < 70)
+      return { icon: Scissors, text: t("processing.stages.selecting") };
+    if (progress < 85)
+      return { icon: Blend, text: t("processing.stages.filtering") };
+    if (progress < 95)
+      return { icon: Layers, text: t("processing.stages.stitching") };
+    return { icon: Layers, text: t("processing.stages.generating") };
   };
 
   const stage = getProcessingStage();
@@ -33,7 +42,7 @@ export function ProcessingView({ progress }: ProcessingViewProps) {
           </div>
 
           <div>
-            <h2 className="mb-2">处理中</h2>
+            <h2 className="mb-2">{t("processing.title")}</h2>
             <p className="text-sm text-gray-500">{stage.text}</p>
           </div>
 
@@ -44,16 +53,22 @@ export function ProcessingView({ progress }: ProcessingViewProps) {
 
           <div className="pt-4 space-y-2 text-left">
             <div className="flex items-center gap-3 text-xs text-gray-500">
-              <div className={`w-2 h-2 rounded-full transition-colors ${progress >= 30 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              <span>视频帧分析</span>
+              <div
+                className={`w-2 h-2 rounded-full transition-colors ${progress >= 30 ? "bg-green-500" : "bg-gray-300"}`}
+              />
+              <span>{t("processing.steps.analysis")}</span>
             </div>
             <div className="flex items-center gap-3 text-xs text-gray-500">
-              <div className={`w-2 h-2 rounded-full transition-colors ${progress >= 70 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              <span>关键帧选择</span>
+              <div
+                className={`w-2 h-2 rounded-full transition-colors ${progress >= 70 ? "bg-green-500" : "bg-gray-300"}`}
+              />
+              <span>{t("processing.steps.selection")}</span>
             </div>
             <div className="flex items-center gap-3 text-xs text-gray-500">
-              <div className={`w-2 h-2 rounded-full transition-colors ${progress >= 100 ? 'bg-green-500' : 'bg-gray-300'}`} />
-              <span>长截图生成</span>
+              <div
+                className={`w-2 h-2 rounded-full transition-colors ${progress >= 100 ? "bg-green-500" : "bg-gray-300"}`}
+              />
+              <span>{t("processing.steps.generation")}</span>
             </div>
           </div>
         </div>
@@ -61,7 +76,7 @@ export function ProcessingView({ progress }: ProcessingViewProps) {
 
       <div className="mt-6 p-4 bg-amber-50 border border-amber-100 rounded-xl">
         <p className="text-xs text-amber-800 text-center">
-          请稍候，处理时间取决于视频长度和内容复杂度
+          {t("processing.waitMessage")}
         </p>
       </div>
     </div>

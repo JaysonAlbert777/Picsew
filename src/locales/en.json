@@ -1,0 +1,72 @@
+{
+  "app": {
+    "title": "Long Screenshot Generator",
+    "subtitle": "Screen Recording to Long Image Tool",
+    "steps": {
+      "selectVideo": "Select Video",
+      "processing": "Processing",
+      "previewDownload": "Preview & Download"
+    }
+  },
+  "upload": {
+    "title": "Upload Screen Recording",
+    "dragDrop": "Click to upload video",
+    "dragDropActive": "Drop video here",
+    "supportFormat": "Supports MP4, MOV, AVI, etc.",
+    "startProcessing": "Start Processing",
+    "loadingResources": "Loading Resources...",
+    "instructions": {
+      "title": "Instructions",
+      "step1": "Upload a screen recording with scrolling",
+      "step2": "System automatically identifies scrolling content",
+      "step3": "Generates a complete long screenshot",
+      "step4": "Support preview and download"
+    }
+  },
+  "processing": {
+    "title": "Processing",
+    "stages": {
+      "preparing": "Preparing...",
+      "extracting": "Extracting frames...",
+      "finding": "Finding scrolling window...",
+      "selecting": "Selecting keyframes...",
+      "filtering": "Filtering keyframes...",
+      "stitching": "Stitching screenshot...",
+      "generating": "Generating final image..."
+    },
+    "steps": {
+      "analysis": "Frame Analysis",
+      "selection": "Keyframe Selection",
+      "generation": "Generation"
+    },
+    "waitMessage": "Please wait, processing time depends on video length and complexity"
+  },
+  "preview": {
+    "complete": {
+      "title": "Processing Complete",
+      "desc": "Long screenshot generated, ready for preview and download"
+    },
+    "result": {
+      "title": "Preview Result",
+      "alt": "Generated long screenshot",
+      "hint": "Long screenshot generated, swipe up to view full content"
+    },
+    "actions": {
+      "download": "Download Image",
+      "share": "Share",
+      "startOver": "Start Over"
+    },
+    "tips": {
+      "title": "Tips",
+      "save": "Long press image to save to gallery",
+      "download": "Click download button to save locally",
+      "share": "Use share button to send to friends"
+    },
+    "share": {
+      "unsupported": "Your browser does not support sharing.",
+      "title": "Long Screenshot",
+      "text": "Check out my long screenshot",
+      "failed": "Share cancelled or failed"
+    }
+  }
+}

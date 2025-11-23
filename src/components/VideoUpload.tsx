@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { Upload, Video, X, Play } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 
@@ -18,6 +19,7 @@ export function VideoUpload({
   onStartProcessing,
   isOpenCVReady,
 }: VideoUploadProps) {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -58,7 +60,7 @@ export function VideoUpload({
   return (
     <div className="max-w-md mx-auto space-y-4">
       <Card className="p-6">
-        <h2 className="mb-4">上传录屏视频</h2>
+        <h2 className="mb-4">{t("upload.title")}</h2>
 
         {!selectedVideo ? (
           <div
@@ -75,8 +77,8 @@ export function VideoUpload({
             <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Upload className="w-8 h-8 text-blue-600" />
             </div>
-            <p className="text-gray-600 mb-2">点击上传视频</p>
-            <p className="text-xs text-gray-400">支持 MP4, MOV, AVI 等格式</p>
+            <p className="text-gray-600 mb-2">{t("upload.dragDrop")}</p>
+            <p className="text-xs text-gray-400">{t("upload.supportFormat")}</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -126,21 +128,23 @@ export function VideoUpload({
           {isOpenCVReady ? (
             <>
               <Play className="w-5 h-5 mr-2" />
-              开始处理
+              {t("upload.startProcessing")}
             </>
           ) : (
-            "正在加载资源..."
+            t("upload.loadingResources")
           )}
         </Button>
       )}
 
       <Card className="p-4 bg-blue-50 border-blue-100">
-        <h3 className="text-sm mb-2 text-blue-900">使用说明</h3>
+        <h3 className="text-sm mb-2 text-blue-900">
+          {t("upload.instructions.title")}
+        </h3>
         <ul className="text-xs text-blue-700 space-y-1">
-          <li>• 上传包含滑动操作的录屏视频</li>
-          <li>• 系统会自动识别滑动内容</li>
-          <li>• 生成一张完整的长截图</li>
-          <li>• 支持预览和下载保存</li>
+          <li>• {t("upload.instructions.step1")}</li>
+          <li>• {t("upload.instructions.step2")}</li>
+          <li>• {t("upload.instructions.step3")}</li>
+          <li>• {t("upload.instructions.step4")}</li>
         </ul>
       </Card>
     </div>
