@@ -6,6 +6,7 @@ import { ProcessingView } from "./components/ProcessingView";
 import { PreviewView } from "./components/PreviewView";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { processVideo as picsewProcessVideo } from "./lib/picsew";
+import { initGA, logPageView } from "./lib/analytics";
 
 type AppStep = "upload" | "processing" | "preview";
 
@@ -20,6 +21,14 @@ export default function App() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    initGA();
+  }, []);
+
+  useEffect(() => {
+    logPageView(`/${currentStep}`);
+  }, [currentStep]);
 
   useEffect(() => {
     if (selectedVideo && videoRef.current) {
