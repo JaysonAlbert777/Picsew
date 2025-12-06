@@ -4,9 +4,9 @@ const GA_MEASUREMENT_ID = "G-BBQ1PPGCCE";
 
 export const initGA = () => {
   ReactGA.initialize(GA_MEASUREMENT_ID, {
-    gtagUrl: "/ga/js",
+    gtagUrl: "https://picsew.ibotcloud.top/ga/js",
     gtagOptions: {
-      transport_url: "/ga/collect",
+      transport_url: "https://picsew.ibotcloud.top/ga/collect",
     },
   });
 };
