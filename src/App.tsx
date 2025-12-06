@@ -7,6 +7,7 @@ import { PreviewView } from "./components/PreviewView";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { processVideo as picsewProcessVideo } from "./lib/picsew";
 import { initGA, logPageView } from "./lib/analytics";
+import SEO from "./components/SEO";
 
 type AppStep = "upload" | "processing" | "preview";
 
@@ -101,6 +102,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50">
+      <SEO
+        title={t("app.title")}
+        description={t("app.subtitle")}
+        keywords="screenshot, stitching, long screenshot, video to image, picsew"
+      />
       {/* Header */}
       <div className="bg-white border-b sticky top-0 z-10 shadow-sm">
         <div className="px-4 py-4">
