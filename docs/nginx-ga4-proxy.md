@@ -27,7 +27,8 @@ location /ga/ {
     }
 
     # Proxy the data collection endpoint
-    location /ga/collect {
+    # Note: GA4 sends requests to /g/collect
+    location /ga/g/collect {
         proxy_pass https://www.google-analytics.com/g/collect;
         proxy_set_header Host www.google-analytics.com;
         proxy_ssl_server_name on;
