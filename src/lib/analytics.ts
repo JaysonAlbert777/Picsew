@@ -3,7 +3,12 @@ import ReactGA from "react-ga4";
 const GA_MEASUREMENT_ID = "G-BBQ1PPGCCE";
 
 export const initGA = () => {
-  ReactGA.initialize(GA_MEASUREMENT_ID);
+  ReactGA.initialize(GA_MEASUREMENT_ID, {
+    gtagUrl: "/ga/js",
+    gtagOptions: {
+      transport_url: "/ga/collect",
+    },
+  });
 };
 
 export const logPageView = (path: string) => {
