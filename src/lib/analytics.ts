@@ -1,19 +1,48 @@
-import ReactGA from "react-ga4";
-
 const GA_MEASUREMENT_ID = "G-BBQ1PPGCCE";
 
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    dataLayer: any[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    gtag: (...args: any[]) => void;
+  }
+}
+
 export const initGA = () => {
-  ReactGA.initialize(GA_MEASUREMENT_ID);
+  const script = document.createElement("script");
+  // Use the proxy for the script
+  script.src = `https://picsew.ibotcloud.top/ga/js?id=${GA_MEASUREMENT_ID}`;
+  script.async = true;
+  document.head.appendChild(script);
+
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () {
+    // eslint-disable-next-line prefer-rest-params
+    window.dataLayer.push(arguments);
+  };
+  window.gtag("js", new Date());
+
+  // Configure transport_url to point to the proxy
+  // GA4 will append /g/collect to this base URL
+  window.gtag("config", GA_MEASUREMENT_ID, {
+    transport_url: "https://picsew.ibotcloud.top/ga",
+  });
 };
 
 export const logPageView = (path: string) => {
-  ReactGA.send({ hitType: "pageview", page: path });
+  if (typeof window.gtag === "function") {
+    window.gtag("event", "page_view", {
+      page_path: path,
+    });
+  }
 };
 
 export const logEvent = (category: string, action: string, label?: string) => {
-  ReactGA.event({
-    category,
-    action,
-    label,
-  });
+  if (typeof window.gtag === "function") {
+    window.gtag("event", action, {
+      event_category: category,
+      event_label: label,
+    });
+  }
 };
