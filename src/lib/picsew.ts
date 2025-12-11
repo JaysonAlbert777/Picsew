@@ -35,14 +35,35 @@ const seekTo = (video: HTMLVideoElement, time: number): Promise<void> => {
   });
 };
 
+const getErrorMessage = (error: unknown, cv?: any): string => {
+  let errorMessage = "Unknown error";
+  if (typeof error === "number" && cv) {
+    try {
+      const exception = cv.exceptionFromPtr(error);
+      errorMessage = `OpenCV Exception: ${exception.msg}`;
+    } catch (_unused) {
+      errorMessage = `OpenCV Exception Pointer: ${error}`;
+    }
+  } else if (error instanceof Error) {
+    errorMessage = error.message;
+  } else if ((error as any).message) {
+    errorMessage = (error as any).message;
+  } else if ((error as any).msg) {
+    errorMessage = (error as any).msg;
+  } else {
+    errorMessage = String(error);
+  }
+  return errorMessage;
+};
+
 const extractFrames = async (
   videoElement: HTMLVideoElement,
   addLog: (message: string) => void,
   updateProgress: (progress: number) => void,
-): Promise<{ fullRes: any[]; lowResGray: any[] }> => {
+): Promise<{ fullRes: ImageData[]; lowResGray: any[] }> => {
   addLog("Extracting frames using seek method...");
   const cv = await getOpenCV();
-  const fullResFrames: any[] = [];
+  const fullResFrames: ImageData[] = [];
   const lowResGrayFrames: any[] = [];
 
   try {
@@ -92,9 +113,12 @@ const extractFrames = async (
       context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
-      // --- Same OpenCV processing as before ---
+      // Store raw ImageData to save WASM memory
+      fullResFrames.push(imageData);
+
+      // --- OpenCV processing ---
+      // Convert to Mat ONLY for processing, then delete immediately
       const fullResFrame = cv.matFromImageData(imageData);
-      fullResFrames.push(fullResFrame);
 
       // Create low-resolution grayscale image
       const lowResFrame = new cv.Mat();
@@ -112,6 +136,8 @@ const extractFrames = async (
       cv.cvtColor(lowResFrame, grayFrame, cv.COLOR_RGBA2GRAY);
       lowResGrayFrames.push(grayFrame);
 
+      // CLEANUP: Delete the full resolution Mat immediately to free WASM memory
+      fullResFrame.delete();
       lowResFrame.delete();
       // --- End of OpenCV processing ---
 
@@ -123,18 +149,7 @@ const extractFrames = async (
     addLog(`Successfully extracted ${fullResFrames.length} frames.`);
     return { fullRes: fullResFrames, lowResGray: lowResGrayFrames };
   } catch (error: any) {
-    let errorMessage = "Unknown error";
-    if (error instanceof Error) {
-      errorMessage = error.message;
-    } else if (error.message) {
-      errorMessage = error.message;
-    } else if (error.msg) {
-      // OpenCV.js errors sometimes use 'msg'
-      errorMessage = error.msg;
-    } else {
-      errorMessage = String(error);
-    }
-
+    const errorMessage = getErrorMessage(error, cv);
     addLog(`Frame extraction failed: ${errorMessage}`);
     console.error("Frame extraction error:", error);
     // Return empty arrays to prevent downstream errors
@@ -460,7 +475,7 @@ const filterKeyframes = async (
 
 const stitchKeyframes = async (
   keyframeIndices: number[],
-  fullResFrames: any[],
+  fullResFramesImageData: ImageData[],
   refinedWindow: any,
   addLog: (message: string) => void,
 ): Promise<any> => {
@@ -469,128 +484,156 @@ const stitchKeyframes = async (
   const { x, y, width, height } = refinedWindow;
 
   // 检查输入帧是否有效
-  if (keyframeIndices.length === 0 || fullResFrames.length === 0) {
+  if (keyframeIndices.length === 0 || fullResFramesImageData.length === 0) {
     addLog("Error: No keyframes or frames to stitch");
     return null;
   }
 
-  const frameWidth = fullResFrames[0].cols;
+  const frameWidth = fullResFramesImageData[0]?.width || 0;
+  if (!frameWidth) {
+    addLog("Error: Invalid first frame width");
+    return null;
+  }
 
-  // 获取全分辨率的关键帧
-  const keyframes = keyframeIndices.map((index) => fullResFrames[index]);
+  // Convert ONLY selected keyframes from ImageData to cv.Mat
+  // We must remember to delete these manually later!
+  const keyframes: any[] = [];
+  try {
+    for (const index of keyframeIndices) {
+      const imgData = fullResFramesImageData[index];
+      if (imgData) {
+        keyframes.push(cv.matFromImageData(imgData));
+      } else {
+        addLog(`Warning: Valid ImageData missing for index ${index}`);
+      }
+    }
 
-  // 检查关键帧是否有效
-  for (const frame of keyframes) {
-    if (!frame) {
-      addLog("Error: Invalid keyframe detected");
+    if (keyframes.length === 0) {
+      addLog("Error: No valid keyframes converted");
       return null;
     }
-  }
 
-  // 1. Calculate Offsets
-  const offsets: { v_offset: number; h_offset: number }[] = [];
-  for (let i = 0; i < keyframes.length - 1; i++) {
-    const frame1 = keyframes[i];
-    const frame2 = keyframes[i + 1];
+    // 1. Calculate Offsets
+    const offsets: { v_offset: number; h_offset: number }[] = [];
+    for (let i = 0; i < keyframes.length - 1; i++) {
+      const frame1 = keyframes[i];
+      const frame2 = keyframes[i + 1];
 
-    const window1 = frame1.roi(new cv.Rect(x, y, width, height));
-    const window2 = frame2.roi(new cv.Rect(x, y, width, height));
+      const window1 = frame1.roi(new cv.Rect(x, y, width, height));
+      const window2 = frame2.roi(new cv.Rect(x, y, width, height));
 
-    const templateHeight = Math.floor(height / 3);
-    const template = window1.roi(
-      new cv.Rect(0, height - templateHeight, width, templateHeight),
-    );
-
-    const res = new cv.Mat();
-    cv.matchTemplate(window2, template, res, cv.TM_CCOEFF_NORMED);
-    const minMaxLoc = cv.minMaxLoc(res, new cv.Mat());
-    const maxLoc = minMaxLoc.maxLoc;
-
-    const vOffset = height - templateHeight - maxLoc.y;
-    const hOffset = maxLoc.x;
-    offsets.push({ v_offset: vOffset, h_offset: hOffset });
-
-    window1.delete();
-    window2.delete();
-    template.delete();
-    res.delete();
-  }
-
-  // 2. Stitch the Images
-  const header = keyframes[0].roi(new cv.Rect(0, 0, frameWidth, y));
-  const footer = keyframes[keyframes.length - 1].roi(
-    new cv.Rect(0, y + height, frameWidth, keyframes[0].rows - (y + height)),
-  );
-
-  let totalHeight = header.rows + height + footer.rows;
-  for (const offset of offsets) {
-    totalHeight += offset.v_offset;
-  }
-
-  const stitchedImage = new cv.Mat(
-    totalHeight,
-    frameWidth,
-    keyframes[0].type(),
-    new cv.Scalar(0, 0, 0, 0),
-  );
-
-  let currentY = 0;
-  const headerRoi = new cv.Rect(0, 0, frameWidth, header.rows);
-  header.copyTo(stitchedImage.roi(headerRoi));
-  currentY += header.rows;
-
-  const firstWindowRoi = new cv.Rect(0, y, frameWidth, height);
-  keyframes[0]
-    .roi(firstWindowRoi)
-    .copyTo(stitchedImage.roi(new cv.Rect(0, currentY, frameWidth, height)));
-  currentY += height;
-
-  for (let i = 0; i < offsets.length; i++) {
-    const offset = offsets[i];
-    if (!offset) continue;
-    const { v_offset, h_offset } = offset;
-    const keyframe = keyframes[i + 1];
-    const scrollingWindow = keyframe.roi(new cv.Rect(x, y, width, height));
-
-    const newPart = scrollingWindow.roi(
-      new cv.Rect(0, height - v_offset, width, v_offset),
-    );
-
-    if (newPart.rows > 0) {
-      const newSlice = new cv.Mat(
-        newPart.rows,
-        width,
-        keyframes[0].type(),
-        new cv.Scalar(0, 0, 0, 0),
+      const templateHeight = Math.floor(height / 3);
+      const template = window1.roi(
+        new cv.Rect(0, height - templateHeight, width, templateHeight),
       );
-      const newSliceRoi = new cv.Rect(h_offset, 0, newPart.cols, newPart.rows);
-      newPart.copyTo(newSlice.roi(newSliceRoi));
 
-      const stitchedImageSliceRoi = new cv.Rect(
-        0,
-        currentY,
-        width,
-        newPart.rows,
-      );
-      newSlice.copyTo(stitchedImage.roi(stitchedImageSliceRoi));
-      currentY += newPart.rows;
-      newSlice.delete();
+      const res = new cv.Mat();
+      cv.matchTemplate(window2, template, res, cv.TM_CCOEFF_NORMED);
+      const minMaxLoc = cv.minMaxLoc(res, new cv.Mat());
+      const maxLoc = minMaxLoc.maxLoc;
+
+      const vOffset = height - templateHeight - maxLoc.y;
+      const hOffset = maxLoc.x;
+      offsets.push({ v_offset: vOffset, h_offset: hOffset });
+
+      window1.delete();
+      window2.delete();
+      template.delete();
+      res.delete();
     }
-    newPart.delete();
-    scrollingWindow.delete();
+
+    // 2. Stitch the Images
+    const header = keyframes[0].roi(new cv.Rect(0, 0, frameWidth, y));
+    const footer = keyframes[keyframes.length - 1].roi(
+      new cv.Rect(0, y + height, frameWidth, keyframes[0].rows - (y + height)),
+    );
+
+    let totalHeight = header.rows + height + footer.rows;
+    for (const offset of offsets) {
+      totalHeight += offset.v_offset;
+    }
+
+    const stitchedImage = new cv.Mat(
+      totalHeight,
+      frameWidth,
+      keyframes[0].type(),
+      new cv.Scalar(0, 0, 0, 0),
+    );
+
+    let currentY = 0;
+    const headerRoi = new cv.Rect(0, 0, frameWidth, header.rows);
+    header.copyTo(stitchedImage.roi(headerRoi));
+    currentY += header.rows;
+
+    const firstWindowRoi = new cv.Rect(0, y, frameWidth, height);
+    keyframes[0]
+      .roi(firstWindowRoi)
+      .copyTo(stitchedImage.roi(new cv.Rect(0, currentY, frameWidth, height)));
+    currentY += height;
+
+    for (let i = 0; i < offsets.length; i++) {
+      const offset = offsets[i];
+      if (!offset) continue;
+      const { v_offset, h_offset } = offset;
+      const keyframe = keyframes[i + 1];
+      const scrollingWindow = keyframe.roi(new cv.Rect(x, y, width, height));
+
+      const newPart = scrollingWindow.roi(
+        new cv.Rect(0, height - v_offset, width, v_offset),
+      );
+
+      if (newPart.rows > 0) {
+        const newSlice = new cv.Mat(
+          newPart.rows,
+          width,
+          keyframes[0].type(),
+          new cv.Scalar(0, 0, 0, 0),
+        );
+        const newSliceRoi = new cv.Rect(
+          h_offset,
+          0,
+          newPart.cols,
+          newPart.rows,
+        );
+        newPart.copyTo(newSlice.roi(newSliceRoi));
+
+        const stitchedImageSliceRoi = new cv.Rect(
+          0,
+          currentY,
+          width,
+          newPart.rows,
+        );
+        newSlice.copyTo(stitchedImage.roi(stitchedImageSliceRoi));
+        currentY += newPart.rows;
+        newSlice.delete();
+      }
+      newPart.delete();
+      scrollingWindow.delete();
+    }
+
+    const footerStitchedRoi = new cv.Rect(0, currentY, frameWidth, footer.rows);
+    footer.copyTo(stitchedImage.roi(footerStitchedRoi));
+    currentY += footer.rows;
+
+    header.delete();
+    footer.delete();
+
+    const finalImage = stitchedImage.roi(
+      new cv.Rect(0, 0, frameWidth, currentY),
+    );
+    stitchedImage.delete(); // Delete the original large image
+
+    return finalImage;
+  } finally {
+    // ALWAYS clean up the temporary cv.Mat keyframes
+    keyframes.forEach((frame) => {
+      try {
+        frame.delete();
+      } catch {
+        // Ignore deletion errors
+      }
+    });
   }
-
-  const footerStitchedRoi = new cv.Rect(0, currentY, frameWidth, footer.rows);
-  footer.copyTo(stitchedImage.roi(footerStitchedRoi));
-  currentY += footer.rows;
-
-  header.delete();
-  footer.delete();
-
-  const finalImage = stitchedImage.roi(new cv.Rect(0, 0, frameWidth, currentY));
-  stitchedImage.delete(); // 删除原始的大图像
-
-  return finalImage;
 };
 
 export const processVideo = async (
@@ -602,9 +645,10 @@ export const processVideo = async (
   addLog("Processing video with OpenCV.js");
   updateProgress(5);
 
-  let fullRes: any[] = [];
+  let fullRes: ImageData[] = [];
   let lowResGray: any[] = [];
   let outsideMask: any = null;
+  let stitchedImage: any = null;
 
   try {
     const cv = await getOpenCV();
@@ -620,8 +664,7 @@ export const processVideo = async (
 
     if (fullRes.length < 2) {
       addLog("Not enough frames to process.");
-      // 清理已提取的帧
-      fullRes.forEach((frame: any) => frame.delete());
+      // lowResGray needs cleanup, fullRes are ImageData (GC handled)
       lowResGray.forEach((frame: any) => frame.delete());
       return;
     }
@@ -629,8 +672,6 @@ export const processVideo = async (
 
     const windowInfo = await findRefinedScrollingWindow(lowResGray, addLog);
     if (!windowInfo) {
-      // 清理已提取的帧
-      fullRes.forEach((frame: any) => frame.delete());
       lowResGray.forEach((frame: any) => frame.delete());
       return;
     }
@@ -659,7 +700,7 @@ export const processVideo = async (
     );
     updateProgress(85);
 
-    const stitchedImage = await stitchKeyframes(
+    stitchedImage = await stitchKeyframes(
       cleanKeyframeIndices,
       fullRes,
       refinedWindow,
@@ -669,29 +710,34 @@ export const processVideo = async (
 
     if (stitchedImage) {
       cv.imshow(outputCanvas, stitchedImage);
-      stitchedImage.delete();
     }
 
     updateProgress(100);
   } catch (error) {
-    addLog(`OpenCV.js 处理错误: ${error}`);
-    console.error("OpenCV.js error:", error);
+    const cv = await getOpenCV().catch(() => null);
+    const errorMessage = getErrorMessage(error, cv);
+    addLog(`Error processing video: ${errorMessage}`);
+    console.error("Video processing error:", error);
   } finally {
-    // 确保清理所有资源
+    // Ensure all resources are cleaned up
     try {
       if (outsideMask) {
         outsideMask.delete();
       }
+      if (stitchedImage) {
+        stitchedImage.delete();
+      }
 
-      fullRes.forEach((frame: any) => {
-        if (frame) {
-          frame.delete();
-        }
-      });
+      // fullRes frames are now ImageData, so they don't need .delete()
+      // We rely on JS Garbage Collection.
 
       lowResGray.forEach((frame: any) => {
         if (frame) {
-          frame.delete();
+          try {
+            frame.delete();
+          } catch {
+            // Ignore deletion errors
+          }
         }
       });
     } catch (cleanupError) {
