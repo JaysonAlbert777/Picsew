@@ -5,6 +5,8 @@ This project is a **TypeScript web application** that automatically analyzes a s
 It produces one main output:
 - The final, stitched long screenshot, displayed directly in the browser.
 
+**WebSite**: [picsew.ibotcloud.top](https://picsew.ibotcloud.top/)
+
 ## Tech Stack
 
 The user interface is built with modern web technologies:
