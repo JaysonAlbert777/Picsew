@@ -1,6 +1,19 @@
 import { getOpenCV } from "./opencv";
+import {
+  getErrorMessage,
+  getFullResDecodeScale,
+  scaleRect,
+} from "./picsew-utils";
 
 const FRAME_RATE = 6; // frames per second
+/** Avoid thousands of video seeks on long recordings (file size does not imply short duration). */
+const MAX_EXTRACT_FRAMES = 480;
+
+/** iOS Safari has strict per-tab memory limits; large full-res frame buffers add up quickly. */
+const isLikelyIOS =
+  typeof navigator !== "undefined" &&
+  (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1));
 
 /**
  * Helper function to seek the video to a specific time and wait for
@@ -35,35 +48,13 @@ const seekTo = (video: HTMLVideoElement, time: number): Promise<void> => {
   });
 };
 
-const getErrorMessage = (error: unknown, cv?: any): string => {
-  let errorMessage = "Unknown error";
-  if (typeof error === "number" && cv) {
-    try {
-      const exception = cv.exceptionFromPtr(error);
-      errorMessage = `OpenCV Exception: ${exception.msg}`;
-    } catch (_unused) {
-      errorMessage = `OpenCV Exception Pointer: ${error}`;
-    }
-  } else if (error instanceof Error) {
-    errorMessage = error.message;
-  } else if ((error as any).message) {
-    errorMessage = (error as any).message;
-  } else if ((error as any).msg) {
-    errorMessage = (error as any).msg;
-  } else {
-    errorMessage = String(error);
-  }
-  return errorMessage;
-};
-
 const extractFrames = async (
   videoElement: HTMLVideoElement,
   addLog: (message: string) => void,
   updateProgress: (progress: number) => void,
-): Promise<{ fullRes: ImageData[]; lowResGray: any[] }> => {
+): Promise<{ lowResGray: any[] }> => {
   addLog("Extracting frames using seek method...");
   const cv = await getOpenCV();
-  const fullResFrames: ImageData[] = [];
   const lowResGrayFrames: any[] = [];
 
   try {
@@ -99,7 +90,10 @@ const extractFrames = async (
     videoElement.pause();
 
     const frameInterval = 1 / FRAME_RATE; // Time in seconds
-    const targetFrameCount = Math.floor(videoElement.duration * FRAME_RATE);
+    const targetFrameCount = Math.min(
+      Math.floor(videoElement.duration * FRAME_RATE),
+      MAX_EXTRACT_FRAMES,
+    );
     addLog(`Targeting ${targetFrameCount} frames...`);
 
     for (let i = 0; i < targetFrameCount; i++) {
@@ -113,8 +107,8 @@ const extractFrames = async (
       context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
-      // Store raw ImageData to save WASM memory
-      fullResFrames.push(imageData);
+      // Do not retain full-res ImageData for every frame — only low-res Mats are kept
+      // until keyframes are chosen; full-res keyframes are extracted in a second pass.
 
       // --- OpenCV processing ---
       // Convert to Mat ONLY for processing, then delete immediately
@@ -146,15 +140,85 @@ const extractFrames = async (
       updateProgress(Math.min(progress, 100));
     }
 
-    addLog(`Successfully extracted ${fullResFrames.length} frames.`);
-    return { fullRes: fullResFrames, lowResGray: lowResGrayFrames };
+    addLog(`Successfully extracted ${lowResGrayFrames.length} low-res frames.`);
+    return { lowResGray: lowResGrayFrames };
   } catch (error: any) {
     const errorMessage = getErrorMessage(error, cv);
     addLog(`Frame extraction failed: ${errorMessage}`);
     console.error("Frame extraction error:", error);
     // Return empty arrays to prevent downstream errors
-    return { fullRes: [], lowResGray: [] };
+    return { lowResGray: [] };
   }
+};
+
+/**
+ * After analysis, fetch full-resolution (or capped on iOS) ImageData only for keyframe times.
+ * Avoids holding hundreds of full-size frames in JS heap at once.
+ */
+const extractFullResKeyframes = async (
+  videoElement: HTMLVideoElement,
+  keyframeIndices: number[],
+  refinedWindow: { x: number; y: number; width: number; height: number },
+  addLog: (message: string) => void,
+  updateProgress: (progress: number) => void,
+): Promise<{
+  keyframeImageData: ImageData[];
+  refinedWindowForStitch: typeof refinedWindow;
+}> => {
+  addLog("Extracting full-resolution keyframes only...");
+  const vw = videoElement.videoWidth;
+  const vh = videoElement.videoHeight;
+  const decodeScale = getFullResDecodeScale(vw, vh, isLikelyIOS);
+  const refinedWindowForStitch =
+    decodeScale === 1 ? refinedWindow : scaleRect(refinedWindow, decodeScale);
+
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    throw new Error("Could not get 2D context for keyframe extraction");
+  }
+  canvas.width = Math.max(1, Math.floor(vw * decodeScale));
+  canvas.height = Math.max(1, Math.floor(vh * decodeScale));
+
+  if (decodeScale < 1) {
+    addLog(
+      `Decoding keyframes at ${canvas.width}x${canvas.height} (scale ${decodeScale.toFixed(3)}) to reduce memory.`,
+    );
+  }
+
+  videoElement.muted = true;
+  videoElement.pause();
+
+  const frameInterval = 1 / FRAME_RATE;
+  const sortedUnique = [...new Set(keyframeIndices)].sort((a, b) => a - b);
+  const indexToImage = new Map<number, ImageData>();
+
+  for (let i = 0; i < sortedUnique.length; i++) {
+    const idx = sortedUnique[i];
+    if (idx === undefined) continue;
+    const t = idx * frameInterval;
+    await seekTo(videoElement, t);
+    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+    indexToImage.set(
+      idx,
+      context.getImageData(0, 0, canvas.width, canvas.height),
+    );
+    const progress = ((i + 1) / sortedUnique.length) * 100;
+    updateProgress(Math.min(progress, 100));
+  }
+
+  const keyframeImageData: ImageData[] = [];
+  for (const idx of keyframeIndices) {
+    const img = indexToImage.get(idx);
+    if (img) {
+      keyframeImageData.push(img);
+    } else {
+      addLog(`Warning: missing full-res frame for index ${idx}`);
+    }
+  }
+
+  addLog(`Loaded ${keyframeImageData.length} full-res keyframe(s).`);
+  return { keyframeImageData, refinedWindowForStitch };
 };
 
 const findRefinedScrollingWindow = async (
@@ -336,9 +400,9 @@ const selectKeyframes = async (
         res,
         cv.TM_CCOEFF_NORMED,
       );
-      const minMaxLoc = cv.minMaxLoc(res, new cv.Mat());
-      const maxVal = minMaxLoc.maxVal;
-      const maxLoc = minMaxLoc.maxLoc;
+      const mm = cv.minMaxLoc(res, 0, 0, 0, 0);
+      const maxVal = mm.maxVal;
+      const maxLoc = mm.maxLoc;
 
       template.delete();
       scrollingWindowContent.delete();
@@ -474,8 +538,7 @@ const filterKeyframes = async (
 };
 
 const stitchKeyframes = async (
-  keyframeIndices: number[],
-  fullResFramesImageData: ImageData[],
+  keyframeImageData: ImageData[],
   refinedWindow: any,
   addLog: (message: string) => void,
 ): Promise<any> => {
@@ -484,12 +547,12 @@ const stitchKeyframes = async (
   const { x, y, width, height } = refinedWindow;
 
   // 检查输入帧是否有效
-  if (keyframeIndices.length === 0 || fullResFramesImageData.length === 0) {
+  if (keyframeImageData.length === 0) {
     addLog("Error: No keyframes or frames to stitch");
     return null;
   }
 
-  const frameWidth = fullResFramesImageData[0]?.width || 0;
+  const frameWidth = keyframeImageData[0]?.width || 0;
   if (!frameWidth) {
     addLog("Error: Invalid first frame width");
     return null;
@@ -499,12 +562,12 @@ const stitchKeyframes = async (
   // We must remember to delete these manually later!
   const keyframes: any[] = [];
   try {
-    for (const index of keyframeIndices) {
-      const imgData = fullResFramesImageData[index];
+    for (let i = 0; i < keyframeImageData.length; i++) {
+      const imgData = keyframeImageData[i];
       if (imgData) {
         keyframes.push(cv.matFromImageData(imgData));
       } else {
-        addLog(`Warning: Valid ImageData missing for index ${index}`);
+        addLog(`Warning: Valid ImageData missing for keyframe ${i}`);
       }
     }
 
@@ -529,8 +592,8 @@ const stitchKeyframes = async (
 
       const res = new cv.Mat();
       cv.matchTemplate(window2, template, res, cv.TM_CCOEFF_NORMED);
-      const minMaxLoc = cv.minMaxLoc(res, new cv.Mat());
-      const maxLoc = minMaxLoc.maxLoc;
+      const mm = cv.minMaxLoc(res, 0, 0, 0, 0);
+      const maxLoc = mm.maxLoc;
 
       const vOffset = height - templateHeight - maxLoc.y;
       const hOffset = maxLoc.x;
@@ -645,7 +708,6 @@ export const processVideo = async (
   addLog("Processing video with OpenCV.js");
   updateProgress(5);
 
-  let fullRes: ImageData[] = [];
   let lowResGray: any[] = [];
   let outsideMask: any = null;
   let stitchedImage: any = null;
@@ -659,12 +721,10 @@ export const processVideo = async (
     const frameResult = await extractFrames(videoElement, addLog, (p) =>
       updateProgress(10 + p * 0.2),
     ); // 10-30%
-    fullRes = frameResult.fullRes;
     lowResGray = frameResult.lowResGray;
 
-    if (fullRes.length < 2) {
+    if (lowResGray.length < 2) {
       addLog("Not enough frames to process.");
-      // lowResGray needs cleanup, fullRes are ImageData (GC handled)
       lowResGray.forEach((frame: any) => frame.delete());
       return;
     }
@@ -698,12 +758,27 @@ export const processVideo = async (
       outsideMask,
       addLog,
     );
+    updateProgress(80);
+
+    if (cleanKeyframeIndices.length === 0) {
+      addLog("No keyframes after filtering.");
+      lowResGray.forEach((frame: any) => frame.delete());
+      return;
+    }
+
+    const { keyframeImageData, refinedWindowForStitch } =
+      await extractFullResKeyframes(
+        videoElement,
+        cleanKeyframeIndices,
+        refinedWindow,
+        addLog,
+        (p) => updateProgress(80 + p * 0.05),
+      );
     updateProgress(85);
 
     stitchedImage = await stitchKeyframes(
-      cleanKeyframeIndices,
-      fullRes,
-      refinedWindow,
+      keyframeImageData,
+      refinedWindowForStitch,
       addLog,
     );
     updateProgress(95);
@@ -727,9 +802,6 @@ export const processVideo = async (
       if (stitchedImage) {
         stitchedImage.delete();
       }
-
-      // fullRes frames are now ImageData, so they don't need .delete()
-      // We rely on JS Garbage Collection.
 
       lowResGray.forEach((frame: any) => {
         if (frame) {

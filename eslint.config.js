@@ -1,18 +1,28 @@
-import tseslint from 'typescript-eslint';
-import js from '@eslint/js';
-import globals from 'globals';
+import tseslint from "typescript-eslint";
+import js from "@eslint/js";
+import globals from "globals";
+import playwright from "eslint-plugin-playwright";
 
 const config = [
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    ignores: ['build/**', 'out/**', 'dist/**', 'node_modules/**']
+    ignores: [
+      "build/**",
+      "out/**",
+      "dist/**",
+      "node_modules/**",
+      "test-results/**",
+      "playwright-report/**",
+      "blob-report/**",
+      "playwright/.cache/**",
+    ],
   },
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'module',
+      ecmaVersion: "latest",
+      sourceType: "module",
       globals: {
         ...globals.browser,
         ...globals.es2020,
@@ -29,7 +39,10 @@ const config = [
         "warn",
         { prefer: "type-imports", fixStyle: "inline-type-imports" },
       ],
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_" },
+      ],
       "@typescript-eslint/require-await": "off",
       "@typescript-eslint/no-misused-promises": [
         "error",
@@ -38,7 +51,35 @@ const config = [
     },
   },
   {
-    files: ['src/lib/picsew.ts'],
+    ...playwright.configs["flat/recommended"],
+    files: ["e2e/**/*.ts"],
+  },
+  {
+    files: ["playwright.config.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
+    files: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    languageOptions: {
+      globals: {
+        ...globals.vitest,
+      },
+    },
+  },
+  {
+    files: ["vitest.config.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
+    },
+  },
+  {
+    files: ["src/lib/picsew.ts", "src/lib/picsew-utils.ts"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unsafe-assignment": "off",
@@ -48,13 +89,13 @@ const config = [
       "@typescript-eslint/no-misused-promises": "off",
       "@typescript-eslint/no-unsafe-argument": "off",
       "@typescript-eslint/no-unsafe-enum-comparison": "off",
-    }
+    },
   },
   {
     linterOptions: {
-      reportUnusedDisableDirectives: true
-    }
-  }
+      reportUnusedDisableDirectives: true,
+    },
+  },
 ];
 
 export default config;
