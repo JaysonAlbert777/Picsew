@@ -165,7 +165,7 @@ const extractFrames = async (
     addLog(`Frame extraction failed: ${errorMessage}`);
     console.error("Frame extraction error:", error);
     // Return empty arrays to prevent downstream errors
-    return { lowResGray: [] };
+    throw new Error(errorMessage);
   }
 };
 
