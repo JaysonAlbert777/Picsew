@@ -418,7 +418,7 @@ const selectKeyframes = async (
         res,
         cv.TM_CCOEFF_NORMED,
       );
-      const mm = cv.minMaxLoc(res, 0, 0, 0, 0);
+      const mm = (cv.minMaxLoc as any)(res);
       const maxVal = mm.maxVal;
       const maxLoc = mm.maxLoc;
 
@@ -610,7 +610,7 @@ const stitchKeyframes = async (
 
       const res = new cv.Mat();
       cv.matchTemplate(window2, template, res, cv.TM_CCOEFF_NORMED);
-      const mm = cv.minMaxLoc(res, 0, 0, 0, 0);
+      const mm = (cv.minMaxLoc as any)(res);
       const maxLoc = mm.maxLoc;
 
       const vOffset = height - templateHeight - maxLoc.y;
