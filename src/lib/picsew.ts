@@ -62,16 +62,34 @@ const extractFrames = async (
     if (videoElement.readyState < HTMLMediaElement.HAVE_METADATA) {
       addLog("Waiting for video metadata...");
       await new Promise<void>((resolve, reject) => {
-        videoElement.addEventListener("loadedmetadata", () => resolve(), {
-          once: true,
-        });
+        const timeout = setTimeout(() => {
+          reject(new Error("Video metadata load timeout"));
+        }, 30000); // 30 second timeout
+
         videoElement.addEventListener(
-          "error",
-          () => reject(new Error("Failed to load video metadata")),
+          "loadedmetadata",
+          () => {
+            clearTimeout(timeout);
+            resolve();
+          },
           { once: true },
         );
+        videoElement.addEventListener(
+          "error",
+          () => {
+            clearTimeout(timeout);
+            reject(new Error("Failed to load video metadata"));
+          },
+          { once: true },
+        );
+        // Trigger load if needed
+        videoElement.load();
       });
       addLog("Metadata loaded.");
+    } else {
+      addLog(
+        `Video already has metadata: ${videoElement.videoWidth}x${videoElement.videoHeight}`,
+      );
     }
 
     // Create the off-screen canvas

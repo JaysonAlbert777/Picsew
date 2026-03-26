@@ -64,15 +64,23 @@ export default function App() {
     setProcessProgress(0);
 
     if (videoRef.current && canvasRef.current) {
-      await picsewProcessVideo(
-        videoRef.current,
-        console.log, // or a state-based logger
-        canvasRef.current,
-        (p) => setProcessProgress(Math.round(p)),
-      );
-      const imageUrl = canvasRef.current.toDataURL("image/png");
-      setGeneratedImage(imageUrl);
-      setCurrentStep("preview");
+      try {
+        await picsewProcessVideo(
+          videoRef.current,
+          console.log, // or a state-based logger
+          canvasRef.current,
+          (p) => setProcessProgress(Math.round(p)),
+        );
+        const imageUrl = canvasRef.current.toDataURL("image/png");
+        setGeneratedImage(imageUrl);
+        setCurrentStep("preview");
+      } catch (error) {
+        console.error("Processing failed:", error);
+        alert(
+          `Processing failed: ${error instanceof Error ? error.message : String(error)}`,
+        );
+        handleReset();
+      }
     } else {
       console.error("Video or canvas ref not available");
       // Handle error appropriately
